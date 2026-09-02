@@ -8,7 +8,6 @@ db = SQLAlchemy()
 def create_app():
     app = Flask(__name__)
 
-    # Lee DB_HOST de las variables de entorno o usa 'localhost' por defecto al ejecutar fuera de Docker
     db_host = os.getenv('DB_HOST', 'localhost')
     db_port = os.getenv('DB_PORT', '5432')
     db_user = os.getenv('POSTGRES_USER', 'admin_user')
@@ -19,17 +18,23 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     app.config['SWAGGER'] = {
-        'title': 'API de Autenticacion - Servicio Pedidos',
+        'title': 'API de Gestion - Servicio Pedidos',
         'uiversion': 3
     }
     Swagger(app)
 
     db.init_app(app)
 
+    # Registrar blueprints
     from app.routes.auth import auth_bp
+    from app.routes.pedidos import pedidos_bp
+
     app.register_blueprint(auth_bp)
+    app.register_blueprint(pedidos_bp)
 
     with app.app_context():
+        from app.models.user import User
+        from app.models.pedido import Pedido
         db.create_all()
 
     return app
