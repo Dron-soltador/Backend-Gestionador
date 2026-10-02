@@ -1,8 +1,10 @@
 ﻿from flask import Flask
 from flasgger import Swagger
+from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
+    CORS(app)
 
     app.config['SWAGGER'] = {
         'title': 'API Microservicio Despachador',
