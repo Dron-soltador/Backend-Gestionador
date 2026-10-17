@@ -1,8 +1,8 @@
 <!-- calidad:inicio -->
-![Calidad](https://img.shields.io/badge/Calidad-64%2F100-yellow) ![Cumple](https://img.shields.io/badge/Cumple-12%2F15-green) ![Aprobado](https://img.shields.io/badge/Aprobado-NO-red)
+![Calidad](https://img.shields.io/badge/Calidad-64%2F100-yellow) ![Aprobado](https://img.shields.io/badge/Aprobado-NO-red) ![Cumple](https://img.shields.io/badge/Cumple-12%2F15-green) ![Duplicación](https://img.shields.io/badge/Duplicaci%C3%B3n-0.0%25-green) ![SEC](https://img.shields.io/badge/SEC-0-green) ![SQL](https://img.shields.io/badge/SQL-0-green) ![DBG](https://img.shields.io/badge/DBG-7-red) ![Capas](https://img.shields.io/badge/Capas-3-green) ![Tests](https://img.shields.io/badge/Tests-1-orange) ![EP](https://img.shields.io/badge/EP-7-orange)
 
 **Calidad de servicios (heurístico):** índice **64/100** · cumple **12/15** · aprobado **NO** · capas **3**
-`SEC 0 · SQL 0 · DBG 7 · duplicación 0.0% · endpoints 7 · tests 1`
+Detalle completo en [`docs/EVALUACION.md`](docs/EVALUACION.md).
 <!-- calidad:fin -->
 
 Proyecto
