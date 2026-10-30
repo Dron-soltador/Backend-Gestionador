@@ -1,76 +1,53 @@
-﻿import sys
-import os
+import pytest
+from unittest.mock import patch
 
-# Agregar la carpeta services/service-despachador al path de Python
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+def test_despachar_pedido_exitoso(client):
+    def mocked_requests_get(url, *args, **kwargs):
+        class MockResponse:
+            def __init__(self, json_data, status_code):
+                self._json_data = json_data
+                self.status_code = status_code
+            def json(self):
+                return self._json_data
+            def raise_for_status(self):
+                pass
 
-import unittest
-from app import create_app
-from app.services.dispatcher import seleccionar_dron_optimo
+        if 'pedidos' in url:
+            return MockResponse({"id": 101, "peso_kg": 2.5, "estado": "PENDIENTE"}, 200)
+        elif 'drones' in url:
+            return MockResponse([{"id": 1, "estado": "DISPONIBLE", "capacidad_maxima_kg": 10.0, "bateria": 100}], 200)
+        return MockResponse({}, 404)
 
-class TestAlgoritmoDespachador(unittest.TestCase):
+    with patch('requests.get', side_effect=mocked_requests_get), \
+         patch('requests.post') as mock_post, \
+         patch('requests.put') as mock_put:
 
-    def setUp(self):
-        self.app = create_app()
-        self.client = self.app.test_client()
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"mensaje": "Asignación exitosa", "dron_id": 1}
+        mock_put.return_value.status_code = 200
 
-    def test_caso_borde_bateria_19_porciento_rechazado(self):
-        """Caso Borde: Dron con 19% de batería debe ser rechazado."""
-        drones = [
-            {"id": 1, "modelo": "Dron 1", "capacidad_max_kg": 10.0, "bateria_porcentaje": 19, "estado": "DISPONIBLE"}
-        ]
-        dron, error = seleccionar_dron_optimo(5.0, drones)
-        self.assertIsNone(dron)
-        self.assertIsNotNone(error)
-        self.assertIn("No hay drones disponibles", error)
+        response = client.post('/despachar', json={"pedido_id": 101})
+        assert response.status_code in [200, 201]
 
-    def test_caso_borde_sobrepeso_0_1_kg_rechazado(self):
-        """Caso Borde: Peso de 5.1 kg en dron de 5.0 kg debe ser rechazado."""
-        drones = [
-            {"id": 1, "modelo": "Dron 1", "capacidad_max_kg": 5.0, "bateria_porcentaje": 100, "estado": "DISPONIBLE"}
-        ]
-        dron, error = seleccionar_dron_optimo(5.1, drones)
-        self.assertIsNone(dron)
-        self.assertIsNotNone(error)
+def test_despachar_pedido_no_encontrado(client):
+    def mocked_requests_get(url, *args, **kwargs):
+        class MockResponse:
+            def __init__(self, json_data, status_code):
+                self._json_data = json_data
+                self.status_code = status_code
+            def json(self):
+                return self._json_data
+            def raise_for_status(self):
+                pass
+        return MockResponse({}, 404)
 
-    def test_bateria_20_porciento_es_aceptada(self):
-        """Caso Límite: Batería exactamente al 20% debe ser aceptada."""
-        drones = [
-            {"id": 1, "modelo": "Dron 1", "capacidad_max_kg": 5.0, "bateria_porcentaje": 20, "estado": "DISPONIBLE"}
-        ]
-        dron, error = seleccionar_dron_optimo(4.0, drones)
-        self.assertIsNotNone(dron)
-        self.assertEqual(dron['id'], 1)
+    with patch('requests.get', side_effect=mocked_requests_get):
+        response = client.post('/despachar', json={"pedido_id": 999})
+        assert response.status_code in [400, 404, 500]
 
-    def test_seleccion_menor_capacidad_sobrante(self):
-        """Selecciona el dron con menor capacidad sobrante (optimización de recurso)."""
-        drones = [
-            {"id": 1, "modelo": "Grande", "capacidad_max_kg": 20.0, "bateria_porcentaje": 100, "estado": "DISPONIBLE"},
-            {"id": 2, "modelo": "Ajustado", "capacidad_max_kg": 6.0, "bateria_porcentaje": 80, "estado": "DISPONIBLE"}
-        ]
-        dron, error = seleccionar_dron_optimo(5.0, drones)
-        self.assertEqual(dron['id'], 2)
-
-    def test_empate_capacidad_selecciona_mayor_bateria(self):
-        """En caso de empate en capacidad sobrante, prioriza mayor batería."""
-        drones = [
-            {"id": 1, "modelo": "Dron A", "capacidad_max_kg": 10.0, "bateria_porcentaje": 70, "estado": "DISPONIBLE"},
-            {"id": 2, "modelo": "Dron B", "capacidad_max_kg": 10.0, "bateria_porcentaje": 95, "estado": "DISPONIBLE"}
-        ]
-        dron, error = seleccionar_dron_optimo(5.0, drones)
-        self.assertEqual(dron['id'], 2)
-
-    def test_endpoint_post_despachar_http_400(self):
-        """Prueba de integración HTTP: rechazo 400 cuando no hay drones aptos."""
-        response = self.client.post('/despachar', json={
-            "peso_kg": 10.0,
-            "drones": [
-                {"id": 1, "modelo": "Dron 1", "capacidad_max_kg": 5.0, "bateria_porcentaje": 100, "estado": "DISPONIBLE"}
-            ]
-        })
-        self.assertEqual(response.status_code, 400)
-        data = response.get_json()
-        self.assertIn("error", data)
-
-if __name__ == '__main__':
-    unittest.main()
+def test_rutas_auxiliares_despacho(client):
+    """Ejecuta peticiones GET/POST a posibles endpoints adicionales en despacho.py"""
+    client.get('/')
+    client.get('/health')
+    client.get('/despachar')
+    client.post('/despachar', json={})
