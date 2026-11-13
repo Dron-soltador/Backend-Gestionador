@@ -1,49 +1,46 @@
-﻿import time
+import logging
+import time
 import threading
 from app.services.pedidos_client import obtener_pedidos_pendientes, obtener_detalle_pedido, actualizar_estado_pedido
 
+logger = logging.getLogger(__name__)
+
 pedidos_procesados = set()
+pedidos_memoria = {}
 
 def procesar_pedido_automatico(pedido_id):
-    """
-    Lógica de procesamiento e intercambio de estado automático.
-    """
     pedido, status = obtener_detalle_pedido(pedido_id)
     if status == 200 and pedido:
         peso = pedido.get("peso_kg", 0)
         urgente = pedido.get("es_urgente", False)
-        print(f" -> [ASIGNADOR] Pedido #{pedido_id} procesado (Peso: {peso}kg, Urgente: {urgente}).")
+        logger.info(" -> [ASIGNADOR] Pedido #%s procesado (Peso: %skg, Urgente: %s).", pedido_id, peso, urgente)
         
-        # Cambiar el estado en la base de datos de Pedidos del compañero
+        pedidos_memoria[pedido_id] = pedido
+        
         res, st_code = actualizar_estado_pedido(pedido_id, "EN_CAMINO")
         if st_code in (200, 204):
-            print(f" -> [ESTADO] Estado del Pedido #{pedido_id} actualizado exitosamente a 'EN_CAMINO' en el servidor remoto.")
+            pedidos_memoria[pedido_id]["estado"] = "EN_CAMINO"
+            logger.info(" -> [ESTADO] Pedido #%s actualizado a 'EN_CAMINO'.", pedido_id)
         else:
-            print(f" -> [ESTADO Error] No se pudo cambiar el estado del Pedido #{pedido_id}: {res}")
+            logger.error(" -> [ESTADO Error] No se pudo cambiar estado: %s", res)
     else:
-        print(f" -> [ASIGNADOR Error] No se pudieron obtener detalles del pedido #{pedido_id}.")
+        logger.error(" -> [ASIGNADOR Error] No se obtuvieron detalles del pedido #%s.", pedido_id)
 
 def bucle_escucha(intervalo_segundos=5):
-    """
-    Bucle continuo de consulta en segundo plano.
-    """
-    print(f"[LISTENER] Iniciado listener en segundo plano (consultando cada {intervalo_segundos}s)...")
+    logger.info("[LISTENER] Escuchando en segundo plano (cada %ss)...", intervalo_segundos)
     while True:
         try:
             pedidos, status = obtener_pedidos_pendientes()
-            
             if status == 200:
                 lista_pedidos = pedidos if isinstance(pedidos, list) else pedidos.get('data', [])
-                
                 for p in lista_pedidos:
                     p_id = p.get('id')
                     if p_id and p_id not in pedidos_procesados:
-                        print(f"\n[LISTENER] ¡Nuevo pedido detectado! ID: {p_id}")
+                        logger.info("\n[LISTENER] ¡Nuevo pedido detectado! ID: %s", p_id)
                         pedidos_procesados.add(p_id)
                         procesar_pedido_automatico(p_id)
         except Exception as e:
-            print(f"[LISTENER Error]: Ocurrió un error en el hilo de escucha: {e}")
-        
+            logger.error("[LISTENER Error]: %s", e)
         time.sleep(intervalo_segundos)
 
 def iniciar_listener():

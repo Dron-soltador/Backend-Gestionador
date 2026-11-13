@@ -1,6 +1,9 @@
 ﻿from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flasgger import Swagger
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -89,5 +92,6 @@ def update_telemetria(drone_id):
     return jsonify({"error": "Dron no encontrado"}), 404
 
 if __name__ == '__main__':
-    print("Servidor corriendo. Swagger en http://localhost:5001/apidocs")
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Servidor corriendo. Swagger en http://localhost:5001/apidocs")
     app.run(host='0.0.0.0', port=5001, debug=True)

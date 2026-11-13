@@ -1,10 +1,9 @@
-import pytest
-
 def test_get_drones_exitoso(client):
     """Prueba la consulta general de drones"""
     response = client.get('/drones')
     assert response.status_code == 200
     assert isinstance(response.get_json(), list)
+
 
 def test_crear_dron_exitoso(client):
     """Prueba la creación de un nuevo dron (POST /drones)"""
@@ -12,12 +11,26 @@ def test_crear_dron_exitoso(client):
         "modelo": "DJI Matrice 350 RTK",
         "capacidad_maxima_kg": 5.5,
         "bateria": 95,
-        "estado": "DISPONIBLE"
+        "estado": "disponible"
     }
     response = client.post('/drones', json=payload)
     assert response.status_code in [200, 201]
     data = response.get_json()
     assert data["modelo"] == "DJI Matrice 350 RTK"
+    assert data["estado"] == "DISPONIBLE"
+
+
+def test_crear_dron_con_valores_por_defecto(client):
+    """Prueba los valores por defecto cuando el cuerpo está vacío"""
+    response = client.post('/drones', json={})
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["id"] == 4
+    assert data["modelo"] == "Dron #4"
+    assert data["capacidad_maxima_kg"] == 2.5
+    assert data["bateria"] == 100
+    assert data["estado"] == "DISPONIBLE"
+
 
 def test_actualizar_telemetria_exitoso(client):
     """Prueba la actualización de batería y estado (PUT /drones/<id>/telemetria)"""
@@ -30,6 +43,32 @@ def test_actualizar_telemetria_exitoso(client):
     data = response.get_json()
     assert data["bateria"] == 80
     assert data["estado"] == "EN_MISION"
+
+
+def test_actualizar_solo_bateria(client):
+    """Prueba la actualización parcial: sólo batería"""
+    response = client.put('/drones/2/telemetria', json={"bateria": 55})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["bateria"] == 55
+    assert data["estado"] == "DISPONIBLE"
+
+
+def test_actualizar_solo_estado(client):
+    """Prueba la actualización parcial: sólo estado"""
+    response = client.put('/drones/3/telemetria', json={"estado": "cargando"})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["estado"] == "CARGANDO"
+    assert data["bateria"] == 62
+
+
+def test_actualizar_telemetria_sin_cambios(client):
+    """Prueba que un cuerpo vacío devuelve el dron sin modificaciones"""
+    response = client.put('/drones/1/telemetria', json={})
+    assert response.status_code == 200
+    assert response.get_json()["bateria"] == 85
+
 
 def test_actualizar_telemetria_dron_inexistente(client):
     """Prueba el caso de error 404 al actualizar un dron que no existe"""

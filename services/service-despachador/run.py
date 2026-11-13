@@ -1,9 +1,12 @@
 ﻿from app import create_app
 from app.services.listener import iniciar_listener
+import logging
 
 app = create_app()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     # Arranca el listener en segundo plano
     iniciar_listener()
     

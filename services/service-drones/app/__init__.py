@@ -6,7 +6,7 @@ import os
 
 db = SQLAlchemy()
 
-def create_app():
+def create_app(config_override=None):
     app = Flask(__name__)
     CORS(app)
 
@@ -18,6 +18,9 @@ def create_app():
 
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///drones.db"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    if config_override:
+        app.config.update(config_override)
 
     app.config['SWAGGER'] = {
         'title': 'API Microservicio Drones',
