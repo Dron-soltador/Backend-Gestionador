@@ -1,12 +1,13 @@
-﻿from flask import Blueprint, request, jsonify
-from app.services.pedidos_client import obtener_detalle_pedido, actualizar_estado_pedido
+from flask import Blueprint, jsonify, request
+from app.services.pedidos_client import obtener_pedidos_pendientes, obtener_detalle_pedido, actualizar_estado_pedido
+import app.services.listener as listener_module
 
 despacho_bp = Blueprint('despacho', __name__)
 
 @despacho_bp.route('/despachar', methods=['POST'])
 def despachar():
     """
-    Solicitar despacho de un pedido y actualizar su estado en Pedidos
+    Despachar un pedido asignando dron
     ---
     tags:
       - Despacho
@@ -16,99 +17,91 @@ def despachar():
         required: true
         schema:
           type: object
-          required:
-            - pedido_id
           properties:
             pedido_id:
               type: integer
-              example: 1
+              example: 101
     responses:
       200:
-        description: Pedido procesado y estado actualizado en Pedidos
+        description: Despacho procesado exitosamente
       400:
-        description: El campo pedido_id es obligatorio
-      500:
-        description: Falló la comunicación con el servicio de Pedidos
+        description: Falta pedido_id
+      404:
+        description: Pedido no encontrado
     """
     data = request.get_json() or {}
     pedido_id = data.get('pedido_id')
-
     if not pedido_id:
-        return jsonify({"error": "Bad Request", "message": "El campo 'pedido_id' es obligatorio."}), 400
+        return jsonify({"error": "Falta pedido_id"}), 400
+        
+    pedido, status = obtener_detalle_pedido(pedido_id)
+    if status != 200 or not pedido:
+        return jsonify({"error": f"Pedido #{pedido_id} no encontrado"}), 404
+        
+    return jsonify({"mensaje": "Procesando despacho", "pedido_id": pedido_id}), 200
 
-    pedido, status_code = obtener_detalle_pedido(pedido_id)
-    if status_code != 200:
-        return jsonify(pedido), status_code
-
-    # Notificar cambio de estado a la BD del compañero
-    actualizar_estado_pedido(pedido_id, "EN_CAMINO")
-
-    return jsonify({
-        "message": "Pedido recibido, asignado a dron y estado actualizado a EN_CAMINO.",
-        "pedido_id": pedido_id,
-        "caracteristicas_paquete": pedido,
-        "nuevo_estado": "EN_CAMINO"
-    }), 200
-
-
-@despacho_bp.route('/despachar/pedidos/<int:pedido_id>/estado', methods=['PUT', 'PATCH'])
-def modificar_estado_pedido(pedido_id):
+@despacho_bp.route('/pedidos-activos', methods=['GET'])
+def obtener_activos():
     """
-    Modificar manualmente el estado de un pedido en la base de datos de Pedidos
+    Obtener lista de pedidos activos (no entregados)
     ---
     tags:
-      - Despacho (Administrador)
-    parameters:
-      - in: path
-        name: pedido_id
-        type: integer
-        required: true
-        description: ID del pedido a modificar
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - estado
-          properties:
-            estado:
-              type: string
-              example: "EN_CAMINO"
-              description: Nuevo estado (PENDIENTE, EN_CAMINO, ENTREGADO, CANCELADO)
+      - Despacho
     responses:
       200:
-        description: Estado modificado correctamente en la BD de Pedidos
-      400:
-        description: Se requiere el parámetro estado
-      500:
-        description: Error al comunicarse con la API de Pedidos
+        description: Lista de pedidos activos para el frontend
     """
-    data = request.get_json() or {}
-    nuevo_estado = data.get('estado')
+    memoria = getattr(listener_module, 'pedidos_memoria', {})
+    activos = [p for p in memoria.values() if p.get('estado') != 'ENTREGADO']
+    
+    if not activos:
+        pedidos, status = obtener_pedidos_pendientes()
+        if status == 200:
+            lista = pedidos if isinstance(pedidos, list) else pedidos.get('data', [])
+            activos = [p for p in lista if p.get('estado') != 'ENTREGADO']
+            
+    return jsonify(activos), 200
 
-    if not nuevo_estado:
-        return jsonify({"error": "Bad Request", "message": "El campo 'estado' es obligatorio."}), 400
-
-    respuesta, status_code = actualizar_estado_pedido(pedido_id, nuevo_estado)
-    return jsonify(respuesta), status_code
-
-
-@despacho_bp.route('/despachar/consultar-pedido/<int:pedido_id>', methods=['GET'])
-def inspeccionar_pedido(pedido_id):
+@despacho_bp.route('/pedidos/<int:pedido_id>/en-camino', methods=['PUT', 'POST'])
+def cambiar_en_camino(pedido_id):
     """
-    Ver características completas de un paquete desde la API de Pedidos
+    Actualizar estado de pedido a EN_CAMINO
     ---
     tags:
       - Despacho
     parameters:
-      - in: path
-        name: pedido_id
+      - name: pedido_id
+        in: path
         type: integer
         required: true
     responses:
       200:
-        description: Retorna peso, urgencia, fragilidad, origen y destino
+        description: Pedido puesto en camino
     """
-    pedido, status_code = obtener_detalle_pedido(pedido_id)
-    return jsonify(pedido), status_code
+    res, status = actualizar_estado_pedido(pedido_id, 'EN_CAMINO')
+    memoria = getattr(listener_module, 'pedidos_memoria', {})
+    if pedido_id in memoria:
+        memoria[pedido_id]['estado'] = 'EN_CAMINO'
+    return jsonify({"mensaje": f"Pedido #{pedido_id} marcado como EN_CAMINO"}), 200
+
+@despacho_bp.route('/pedidos/<int:pedido_id>/entregar', methods=['PUT', 'POST'])
+def entregar_pedido(pedido_id):
+    """
+    Actualizar estado de pedido a ENTREGADO
+    ---
+    tags:
+      - Despacho
+    parameters:
+      - name: pedido_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Pedido entregado exitosamente
+    """
+    res, status = actualizar_estado_pedido(pedido_id, 'ENTREGADO')
+    memoria = getattr(listener_module, 'pedidos_memoria', {})
+    if pedido_id in memoria:
+        memoria[pedido_id]['estado'] = 'ENTREGADO'
+    return jsonify({"mensaje": f"Pedido #{pedido_id} marcado como ENTREGADO"}), 200
