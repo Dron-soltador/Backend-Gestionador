@@ -234,11 +234,21 @@ Criterios que hoy están en rojo y, para cada uno, una explicación breve de **c
 
 ## 7. Anexo: archivos donde se originan los problemas
 
-Se listan los archivos y líneas que el análisis marca para cada criterio en rojo. Para **duplicación** se muestran los archivos con más líneas repetidas; para **cobertura**, las unidades por debajo del umbral.
+Se listan **todos** los archivos y líneas que el análisis marca para cada criterio en rojo. Para **duplicación** se muestran los archivos con líneas repetidas; para **cobertura**, las unidades por debajo del umbral.
+
+**Resumen por archivo** — archivos con más hallazgos:
+
+| Archivo | Hallazgos | Peso total | Señales |
+|---|---:|---:|---|
+| `services/service-despachador/app/routes/despacho.py` | 2 | 9 | high_complexity, long_function |
+| `services/service-despachador/app/services/listener.py` | 1 | 5 | high_complexity |
+| `services/service-drones/app/__init__.py` | 1 | 4 | long_function |
 
 **Cobertura (Cob)** — unidades por debajo del umbral:
 
-- `services/service-drones` — 3.4% (2/58 líneas)
+| Unidad | Cobertura | Líneas cubiertas / totales |
+|---|---:|---:|
+| `services/service-drones` | 3.4% | 2/58 |
 
 ---
 _Informe generado por la cátedra. Los umbrales corresponden al perfil `exigente`. Ante dudas, revisá el archivo y la línea señalados y el criterio en `CRITERIOS-CALIDAD.md`._
